@@ -1,80 +1,102 @@
 labels = []
+variables = ["zr","null","null","null","null","null","null","null","null","null","null","null","null","null","null","null","null","null","null","null","null","null","null","null","null","null","null","null","null","null","null","null"]
 
 
 if_counter = 0
 for_counter = 0
-linecount = 0
+linecount = 0   
 
-jump_lut = {
+branch_lut = {
     ">=":"l",
     "<=":"g",
     "==":"ne",
     "!=":"eq",
     ">":"le",
     "<":"ge"
-
 }
 
+def is_int(input_):
+    for char in input_:
+        if char not in "0123456789":
+            return False
+    return True
 
-def compile(line):
-    variables = ["zr","for_temp"]
-    spaces = (len(line.lstrip())-len(line))/4
-    line = line.lstrip()
-    print(f"compiling{line}")
-    if (line[0] != "#") and (line != ""):
-        output = ""
-        if line[0:2] == "def":
-            output = ""
-            labels += line[4:-1]
 
-        elif line[0:2] == "set":   #format: set r1 = variable
-            tokens = line.split()
-            variables += tokens[3]
-            output = "" 
+def varset(line):    #format: variable = reg
+    line = line.split()
+    reg = line[2]
+    global variables 
+    variables.insert(reg[1:],line[1])    
+    e = vars.index(line[0])
+    return(f"sub {e},{e},{e}")
 
-        elif line[0] == "<":
-            tokens = line.split()
-            output = tokens[0] + tokens[1] #allows for comments
+def setvar(line):
+    line = line.split()
+    e = vars.index(line[0])
+    return(f"sub {e},{e},{e}\
+           addi {e},{line[2]},{e}")
 
-        elif line[0:3] == "for ":
-            if_counter += 1
-            tokens = line.split()
-            labels.append([f"labelf_{for_counter}__os",linecount])
-            output = f"sub {tokens[3]},1,{tokens[3]}"
-            output += f"cmpi {tokens[3]},0"
-            
+def if_(line):
+    var = ""
+    output = "cmp "
+    jumpstore = "b"
+    for char in line[2:]:
+        if char != " ":
+            var += char
+        else:
+            if var not in "<><=>=!==":
+                if is_int(var):
+                    output += var
+                else:
+                    output += variables.index(var)
+            else:
+                jumpstore += branch_lut(var)
+    jumpstore += f"if__{if_counter}"
+    global if_counter
+    if_counter += 1
+    return(output + jumpstore)
 
-        elif line[0:5] == "forbit":  #forbit means to interpret it as a binary number instead of as a integer
-            if_counter += 1
-            tokens = line.split()
-            labels.append([f"labelf_{for_counter}__os",linecount])
-            output = "sub r1,r1,r1"
-            output += f"muli r{tokens[3]},2,r{tokens[3]}"
-            output += f"andi r{tokens[3]},1,r1"
+def for_(line):
+    global labels
+    labels.append([linecount],f"for_label__{for_counter}")
+    for char in line[3:]:
+        if char != " ":
+            var += char
+        else:
+            if var not in "<><=>=!==":
+                if is_int(var):
+                    output += var
+                else:
+                    output += variables.index(var)
+            else:
+                jumpstore += branch_lut(var)
 
-        elif line[0:3] == "exit":
-            labels.append([f"labelf_{for_counter}_exit__os",linecount])
-            output = f"jae labelf_{for_counter}__os"
+def define(line):
+    line = line.split()
 
-        elif line == "break":
-            output = f"jump labelf_{for_counter}_exit__os"
 
-        elif line[0:1] == "if":
-            output = "cmp"
-            tokens = line.split()
-            if not(tokens[3] in variables):
-                output += "i"
-            output += tokens[1] + tokens[3]
-            output += f"j{jump_lut[tokens[2]]}label_{if_counter}_exit__os"
+def main_(lines):
+    output = ""
+    if_list = []
+    for line in lines:
+        if line[0] == "/":
+            output += line[2:]
+        print(line)
+        indent = (len(line)-len(line.lstrip()))//4
 
-        elif line == "if exit":
-            labels.append([f"label_{if_counter}_exit__os",linecount])
-            output = ""
+        #error handling
+        if line[0:3] == "def " and indent >= 1:
+            raise KeyError("cannot have function definitions inside if or for loops")
+        
+        #handle if statements
+        if "if " in line:
+            output += if_(line)
+            if_list.push(if_counter)
+        elif "if_end" in line:
+            output += f"if__{if_list.pop()}"
 
-    else:
-        output = ""
+        #handle for statements
 
-    print(f"line compiled: {line} -> {output}")
-    linecount += 1
 
-compile("set r1 = base")
+        global linecount
+        linecount += 1
